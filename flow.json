@@ -1,0 +1,25 @@
+{
+  "title": "Get Porche Price",
+  "url": "https://oceanofgames.com",
+  "path": [
+    {
+      "action": "visit_each",
+      "target": "central-bank-tenoke-free-download/,https://oceanofgames.com/deadzone-rogue-v1-0-0-3-early-access-free-download/",
+      "description": "Get games of 2 pages",
+      "step": [
+        {
+          "action": "extract_text",
+          "selector": ".title",
+          "store_as": "title",
+          "description": "Get the Carrera price"
+
+        }
+      ]
+    },
+    {
+      "action": "save",
+      "filename": "articles.json",
+      "description": "For Saving the Scraped Data"
+    }
+  ]
+}
