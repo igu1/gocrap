@@ -3,79 +3,124 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"log"
-	"os"
-	"strings"
-
 	"github.com/playwright-community/playwright-go"
+	"log"
+	"net/http"
+	"os"
+	"reflect"
+	"strings"
 )
 
 const (
-	GOTO             = "go_to"
-	EXTRACT_TEXT     = "extract_text"
-	EXTRACT_ELEMENTS = "extract_els"
-	SAVE             = "save"
-	VISIT_EACH       = "visit_each"
+	GOTO          = "go_to"
+	EXTRACT       = "extract"
+	EXTRACT_MULTI = "extract_multi"
+	SAVE          = "save"
+	VISIT_EACH    = "visit_each"
 )
 
 type Step struct {
-	Action      string `json:"action"`
-	Target      string `json:"target,omitempty"`
-	Description string `json:"description,omitempty"`
-	Selector    string `json:"selector,omitempty"`
-	StoreAs     string `json:"store_as,omitempty"`
-	Filename    string `json:"filename,omitempty"`
-	Step        []Step `json:"step,omitempty"`
+	Action        string `json:"action"`
+	Target        string `json:"target,omitempty"`
+	Description   string `json:"description,omitempty"`
+	Selector      string `json:"selector,omitempty"`
+	ChildSelector string `json:"child_selector,omitempty"`
+	Attribute     string `json:"attribute,omitempty"`
+	StoreAs       string `json:"store_as,omitempty"`
+	Filename      string `json:"filename,omitempty"`
+	Step          []Step `json:"step,omitempty"`
+}
+
+func (step Step) validate(s Step, mands []string) (bool, error) {
+	val := reflect.ValueOf(s)
+	typ := reflect.TypeOf(s)
+	for _, mand := range mands {
+		field, ok := typ.FieldByName(mand)
+		if !ok {
+			return false, fmt.Errorf("unknown field: %s", mand)
+		}
+		f := val.FieldByName(field.Name)
+		if f.Kind() == reflect.String && f.String() == "" {
+			return false, fmt.Errorf("missing required field: %s", mand)
+		}
+	}
+	return true, nil
 }
 
 func (step Step) run(flow *Flow, page playwright.Page) bool {
 	switch step.Action {
 	case GOTO:
+		isvalid, err := step.validate(step, []string{"Target"})
+		if !isvalid {
+			flow.errorLog("Error navigating:" + err.Error())
+			return false
+		}
 		fmt.Println("Go to", step.Target)
-		_, err := page.Goto(flow.Url + step.Target)
+		_, err = page.Goto(flow.Url + step.Target)
 		if err != nil {
-			fmt.Println("Error navigating:", err)
+			flow.errorLog("Error navigating:" + err.Error())
 			return false
 		}
 		flow.Mem["curr_page"] = flow.Url + step.Target
 
-	case EXTRACT_TEXT:
-		fmt.Printf("Extracting from: %s, selector: %s\n", flow.Mem["curr_page"], step.Selector)
-
-		_, err := page.WaitForSelector(step.Selector)
-		if err != nil {
-			fmt.Println("Error waiting for selector:", err)
+	case EXTRACT:
+		isvalid, err := step.validate(step, []string{"Selector", "StoreAs"})
+		if !isvalid {
+			flow.errorLog("Error extracting:" + err.Error())
 			return false
 		}
-
-		elements, err := page.QuerySelectorAll(step.Selector)
+		el, err := page.QuerySelector(step.Selector)
 		if err != nil {
-			fmt.Println("Error selecting elements:", err)
+
+			flow.errorLog("Error navigating:" + err.Error())
 			return false
 		}
-
-		var results []string
-		for _, el := range elements {
-			text, _ := el.TextContent()
-			if text != "" {
-				fmt.Println("Extracted:", strings.TrimSpace(text))
-				results = append(results, strings.TrimSpace(text))
+		var data string
+		if step.Attribute != "" {
+			data, _ = el.GetAttribute(step.Attribute)
+		} else {
+			data, _ = el.TextContent()
+		}
+		if data != "" {
+			if old, ok := flow.Mem[step.StoreAs].(string); ok {
+				flow.Mem[step.StoreAs] = []string{old, data}
+			} else {
+				flow.Mem[step.StoreAs] = data
 			}
 		}
-		flow.Mem[step.StoreAs] = strings.Join(results, "; ")
-
-	case EXTRACT_ELEMENTS:
-		elements, err := page.QuerySelectorAll(step.Selector)
-		if err != nil {
-			fmt.Println("Error selecting elements:", err)
+	case EXTRACT_MULTI:
+		isvalid, err := step.validate(step, []string{"Selector", "StoreAs"})
+		if !isvalid {
+			flow.errorLog("Error muti extracting:" + err.Error())
 			return false
 		}
-		var results []playwright.ElementHandle
-		for _, el := range elements {
-			results = append(results, el)
+		elements, err := page.QuerySelectorAll(step.Selector)
+		if err != nil {
+			flow.errorLog("Error selecting child elements:" + err.Error())
+			return false
 		}
-		flow.Mem[step.StoreAs] = results
+		extractedData := []string{}
+		for _, el := range elements {
+			var data string
+			if step.Attribute != "" {
+				data, _ = el.GetAttribute(step.Attribute)
+			} else {
+				data, _ = el.TextContent()
+			}
+			if data != "" {
+				extractedData = append(extractedData, data)
+			}
+			continue
+		}
+		if old, ok := flow.Mem[step.StoreAs]; ok {
+			if slice, ok := old.([]string); ok {
+				flow.Mem[step.StoreAs] = append(slice, extractedData...)
+			} else {
+				flow.Mem[step.StoreAs] = extractedData
+			}
+		} else {
+			flow.Mem[step.StoreAs] = extractedData
+		}
 
 	case VISIT_EACH:
 		//ITS TAKING FROM MEMORY, SO ONLY PREV NODE CAN PASS THE URL
@@ -83,7 +128,7 @@ func (step Step) run(flow *Flow, page playwright.Page) bool {
 		urls := strings.Split(urls_str, ",")
 		fmt.Println("Visiting urls:", urls)
 		if !ok {
-			fmt.Println("No URLs found in memory for key:", step.Target)
+			flow.errorLog("No URLs found in memory for key:" + step.Target)
 			return false
 		}
 		for _, url := range urls {
@@ -91,7 +136,7 @@ func (step Step) run(flow *Flow, page playwright.Page) bool {
 			flow.Mem["curr_page"] = url
 			_, err := page.Goto(url)
 			if err != nil {
-				fmt.Println("Error navigating:", err)
+				flow.errorLog("Error navigating:" + err.Error())
 				return false
 			}
 			for _, subStep := range step.Step {
@@ -102,16 +147,21 @@ func (step Step) run(flow *Flow, page playwright.Page) bool {
 		}
 
 	case SAVE:
+		isvalid, err := step.validate(step, []string{"Filename"})
+		if !isvalid {
+			flow.errorLog("Error saving:" + err.Error())
+			return false
+		}
 		filename := step.Filename
 		fmt.Println("Saving to", filename)
 		data, err := json.MarshalIndent(flow.Mem, "", "  ")
 		if err != nil {
-			fmt.Println("Error marshaling data:", err)
+			flow.errorLog("Error marshaling data:" + err.Error())
 			return false
 		}
 		err = os.WriteFile(filename, data, 0644)
 		if err != nil {
-			fmt.Println("Error writing file:", err)
+			flow.errorLog("Error writing file:" + err.Error())
 			return false
 		}
 	}
@@ -125,46 +175,31 @@ type Flow struct {
 	Mem   map[string]interface{} `json:"mem"`
 }
 
-func validateJson(flow Flow) error {
-	return nil
+func (f Flow) errorLog(err string) {
+	errs, _ := f.Mem["errors"].([]string)
+	errs = append(errs, err)
+	fmt.Println(err)
 }
 
-func main() {
-	err := playwright.Install()
+func (f Flow) run(flow Flow) Flow {
+	err := validateJson(flow)
 	if err != nil {
-		log.Fatal(err)
-	}
-	flow := Flow{
-		Mem: make(map[string]interface{}),
-	}
-	file, err := ioutil.ReadFile("flow.json")
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	err = json.Unmarshal(file, &flow)
-	if err != nil {
-		fmt.Println(err)
-		return
-	}
-	err = validateJson(flow)
-	if err != nil {
-		fmt.Println(err)
-		return
+		f.errorLog(err.Error())
+		return f
 	}
 	pw, err := playwright.Run()
 	if err != nil {
-		log.Fatalf("could not start playwright: %v", err)
+		f.errorLog(err.Error())
 	}
 	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
-		Headless: playwright.Bool(false),
+		Headless: playwright.Bool(true),
 	})
 	if err != nil {
-		log.Fatalf("could not launch browser: %v", err)
+		f.errorLog(err.Error())
 	}
 	page, err := browser.NewPage()
 	if err != nil {
-		log.Fatalf("could not create page: %v", err)
+		f.errorLog(err.Error())
 	}
 	for _, step := range flow.Path {
 		step.run(&flow, page)
@@ -172,6 +207,43 @@ func main() {
 	defer page.Close()
 	err = browser.Close()
 	if err != nil {
-		log.Fatalf("could not close browser: %v", err)
+		f.errorLog(err.Error())
+	}
+	return flow
+}
+
+func validateJson(flow Flow) error {
+	return nil
+}
+
+func flowHandler(w http.ResponseWriter, r *http.Request) {
+	flow := Flow{
+		Mem: make(map[string]interface{}),
+	}
+	err := json.NewDecoder(r.Body).Decode(&flow)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+	f := flow.run(flow)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+	if err := json.NewEncoder(w).Encode(f.Mem); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+	}
+}
+
+func main() {
+	err := playwright.Install()
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+
+	http.HandleFunc("/run", flowHandler)
+	fmt.Println("Server running at http://localhost:8080/")
+	err = http.ListenAndServe(":8080", nil)
+	if err != nil {
+		fmt.Println("Error starting server:", err)
 	}
 }
