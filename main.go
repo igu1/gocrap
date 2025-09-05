@@ -8,7 +8,6 @@ import (
 	"net/http"
 	"os"
 	"reflect"
-	"strings"
 )
 
 const (
@@ -16,7 +15,6 @@ const (
 	EXTRACT       = "extract"
 	EXTRACT_MULTI = "extract_multi"
 	SAVE          = "save"
-	VISIT_EACH    = "visit_each"
 )
 
 type Step struct {
@@ -71,8 +69,11 @@ func (step Step) run(flow *Flow, page playwright.Page) bool {
 		}
 		el, err := page.QuerySelector(step.Selector)
 		if err != nil {
-
 			flow.errorLog("Error navigating:" + err.Error())
+			return false
+		}
+		if el == nil {
+			flow.errorLog("No element found for selector: " + step.Selector)
 			return false
 		}
 		var data string
@@ -101,6 +102,9 @@ func (step Step) run(flow *Flow, page playwright.Page) bool {
 		}
 		extractedData := []string{}
 		for _, el := range elements {
+			if el == nil {
+				continue
+			}
 			var data string
 			if step.Attribute != "" {
 				data, _ = el.GetAttribute(step.Attribute)
@@ -110,7 +114,6 @@ func (step Step) run(flow *Flow, page playwright.Page) bool {
 			if data != "" {
 				extractedData = append(extractedData, data)
 			}
-			continue
 		}
 		if old, ok := flow.Mem[step.StoreAs]; ok {
 			if slice, ok := old.([]string); ok {
@@ -120,30 +123,6 @@ func (step Step) run(flow *Flow, page playwright.Page) bool {
 			}
 		} else {
 			flow.Mem[step.StoreAs] = extractedData
-		}
-
-	case VISIT_EACH:
-		//ITS TAKING FROM MEMORY, SO ONLY PREV NODE CAN PASS THE URL
-		urls_str, ok := flow.Mem[step.Target].(string)
-		urls := strings.Split(urls_str, ",")
-		fmt.Println("Visiting urls:", urls)
-		if !ok {
-			flow.errorLog("No URLs found in memory for key:" + step.Target)
-			return false
-		}
-		for _, url := range urls {
-			fmt.Println("Visiting:", url)
-			flow.Mem["curr_page"] = url
-			_, err := page.Goto(url)
-			if err != nil {
-				flow.errorLog("Error navigating:" + err.Error())
-				return false
-			}
-			for _, subStep := range step.Step {
-				if !subStep.run(flow, page) {
-					return false
-				}
-			}
 		}
 
 	case SAVE:
@@ -175,9 +154,10 @@ type Flow struct {
 	Mem   map[string]interface{} `json:"mem"`
 }
 
-func (f Flow) errorLog(err string) {
+func (f *Flow) errorLog(err string) {
 	errs, _ := f.Mem["errors"].([]string)
 	errs = append(errs, err)
+	f.Mem["errors"] = errs
 	fmt.Println(err)
 }
 
@@ -192,7 +172,7 @@ func (f Flow) run(flow Flow) Flow {
 		f.errorLog(err.Error())
 	}
 	browser, err := pw.Chromium.Launch(playwright.BrowserTypeLaunchOptions{
-		Headless: playwright.Bool(true),
+		Headless: playwright.Bool(false),
 	})
 	if err != nil {
 		f.errorLog(err.Error())
