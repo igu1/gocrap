@@ -1,0 +1,38 @@
+# Binaries
+/bin/
+/build/
+/dist/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+
+# Go modules/cache
+vendor/
+*.mod
+*.sum
+
+# Logs
+*.log
+
+# IDEs/Editors
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Playwright caches/downloads
+ms-playwright/
+.playwright-go/
+
+# Docker
+*.tar
+
+# Misc
+.tmp/
+.zencoder/

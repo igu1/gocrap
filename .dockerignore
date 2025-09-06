@@ -1,0 +1,22 @@
+# Docker build context ignores
+.git
+.github
+.gitignore
+Dockerfile
+Makefile
+bin/
+build/
+dist/
+.tmp/
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Playwright caches
+ms-playwright/
+.playwright-go/

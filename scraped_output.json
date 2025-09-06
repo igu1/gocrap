@@ -1,0 +1,6 @@
+{
+  "errors": [
+    "Error navigating:Frame.Goto https://temp-mail.org/en/: playwright: timeout: Timeout 30000ms exceeded."
+  ],
+  "new mail": "Loading"
+}
