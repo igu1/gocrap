@@ -1,6 +1,4 @@
 {
-  "errors": [
-    "Error navigating:Frame.Goto https://temp-mail.org/en/: playwright: timeout: Timeout 30000ms exceeded."
-  ],
-  "new mail": "Loading"
+  "curr_page": "https://github.com/igu1/",
+  "username": "\n          R3tro\n        "
 }

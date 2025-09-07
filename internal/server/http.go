@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"net/http"
 
-	"github.com/igu1/gocrap/internal/flow"
+	_ "github.com/igu1/gocrap/internal/actions"
+	"github.com/igu1/gocrap/internal/core"
 )
 
 func RegisterRoutes() {
@@ -13,7 +14,7 @@ func RegisterRoutes() {
 }
 
 func flowHandler(w http.ResponseWriter, r *http.Request) {
-	f := flow.Flow{Mem: make(map[string]interface{})}
+	f := core.Flow{Mem: make(map[string]interface{})}
 	if err := json.NewDecoder(r.Body).Decode(&f); err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return

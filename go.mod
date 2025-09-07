@@ -1,6 +1,6 @@
 module github.com/igu1/gocrap
 
-go 1.24.6
+go 1.23
 
 require (
 	github.com/deckarep/golang-set/v2 v2.8.0 // indirect
