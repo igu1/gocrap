@@ -8,20 +8,17 @@ import (
 )
 
 func init() {
-	core.RegisterHandler("click", func(step core.Step, flow *core.Flow, page playwright.Page) bool {
+	core.RegisterHandler("uncheck", func(step core.Step, flow *core.Flow, page playwright.Page) bool {
 		_, err := step.Validate(step, []string{"Target"})
 		if err != nil {
-			fmt.Println(err)
+			flow.ErrorLog(fmt.Sprintf("uncheck validation failed: %v", err))
 			return false
 		}
-		loc, err := page.WaitForSelector(step.Target)
+
+		loc := page.Locator(step.Target)
+		err = loc.Uncheck()
 		if err != nil {
-			fmt.Println(err)
-			return false
-		}
-		err = loc.Click()
-		if err != nil {
-			fmt.Println(err)
+			flow.ErrorLog(fmt.Sprintf("uncheck failed: %v", err))
 			return false
 		}
 		return true

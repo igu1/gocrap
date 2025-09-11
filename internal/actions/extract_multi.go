@@ -12,28 +12,28 @@ func init() {
 			flow.ErrorLog("Error extracting:" + err.Error())
 			return false
 		}
-		el, err := page.WaitForSelector(step.Selector)
+		elementHandles, err := page.QuerySelectorAll(step.Selector)
 		if err != nil {
 			flow.ErrorLog("Error navigating:" + err.Error())
 			return false
 		}
-		if el == nil {
+		if elementHandles == nil {
 			flow.ErrorLog("No element found for selector: " + step.Selector)
 			return false
 		}
-		var data string
-		if step.Attribute != "" {
-			data, _ = el.GetAttribute(step.Attribute)
-		} else {
-			data, _ = el.TextContent()
-		}
-		if data != "" {
-			if old, ok := flow.Mem[step.StoreAs].(string); ok {
-				flow.Mem[step.StoreAs] = []string{old, data}
+		var datas []string
+		for _, e := range elementHandles {
+			var data string
+			if step.Attribute != "" {
+				data, _ = e.GetAttribute(step.Attribute)
 			} else {
-				flow.Mem[step.StoreAs] = data
+				data, _ = e.TextContent()
+			}
+			if data != "" {
+				datas = append(datas, data)
 			}
 		}
+		flow.Mem[step.StoreAs] = datas
 		return true
 	})
 }

@@ -17,6 +17,7 @@ type Step struct {
 	Attribute     string `json:"attribute,omitempty"`
 	StoreAs       string `json:"store_as,omitempty"`
 	Filename      string `json:"filename,omitempty"`
+	Value         string `json:"value,omitempty"`
 	Step          []Step `json:"step,omitempty"`
 }
 

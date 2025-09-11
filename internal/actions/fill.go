@@ -1,27 +1,25 @@
 package actions
 
 import (
-	"fmt"
-
 	"github.com/igu1/gocrap/internal/core"
 	"github.com/playwright-community/playwright-go"
 )
 
 func init() {
-	core.RegisterHandler("click", func(step core.Step, flow *core.Flow, page playwright.Page) bool {
-		_, err := step.Validate(step, []string{"Target"})
-		if err != nil {
-			fmt.Println(err)
+	core.RegisterHandler("fill", func(step core.Step, flow *core.Flow, page playwright.Page) bool {
+		ok, err := step.Validate(step, []string{"Target", "Value"})
+		if !ok {
+			flow.ErrorLog(err.Error())
 			return false
 		}
 		loc, err := page.WaitForSelector(step.Target)
 		if err != nil {
-			fmt.Println(err)
+			flow.ErrorLog(err.Error())
 			return false
 		}
-		err = loc.Click()
+		err = loc.Fill(step.Value)
 		if err != nil {
-			fmt.Println(err)
+			flow.ErrorLog(err.Error())
 			return false
 		}
 		return true

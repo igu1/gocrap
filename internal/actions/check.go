@@ -8,20 +8,17 @@ import (
 )
 
 func init() {
-	core.RegisterHandler("click", func(step core.Step, flow *core.Flow, page playwright.Page) bool {
+	core.RegisterHandler("check", func(step core.Step, flow *core.Flow, page playwright.Page) bool {
 		_, err := step.Validate(step, []string{"Target"})
 		if err != nil {
-			fmt.Println(err)
+			flow.ErrorLog(fmt.Sprintf("check validation failed: %v", err))
 			return false
 		}
-		loc, err := page.WaitForSelector(step.Target)
+
+		loc := page.Locator(step.Target)
+		err = loc.Check()
 		if err != nil {
-			fmt.Println(err)
-			return false
-		}
-		err = loc.Click()
-		if err != nil {
-			fmt.Println(err)
+			flow.ErrorLog(fmt.Sprintf("check failed: %v", err))
 			return false
 		}
 		return true
